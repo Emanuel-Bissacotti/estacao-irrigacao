@@ -49,18 +49,17 @@ void reconnect ()  {
   }
 } 
 
-void setup ()  { 
-  Serial.begin ( 115200 ); 
+void setup() { 
+  Serial.begin(9600); 
   
   WiFi.begin(ssid, password); 
   while (WiFi. status () != WL_CONNECTED) { 
-    delay( 500 ); 
-    Serial.print( "." ); 
+    delay(500); 
+    Serial.print("."); 
   } 
-  Serial.println( "" ); 
-  Serial.println( "Conectado ao Wi-Fi" ); 
+  Serial.println(""); 
+  Serial.println("Conectado ao Wi-Fi"); 
 
-  // Inicializa o WiFiClient seguro
   wifiClient.setInsecure();
   
   setupMQTT(); 
@@ -68,7 +67,8 @@ void setup ()  {
 
   pinMode(pinoDHT, INPUT);
   pinMode(pinoFC_28, INPUT);
- } 
+  pinMode(pin_rele, OUTPUT);
+} 
 
 void loop ()  { 
   if (!mqttClient.connected ()) { 
@@ -78,7 +78,7 @@ void loop ()  {
   if (!mqttClient.subscribe("esp32/")) {
     Serial.println("Erro ao se inscrever no topico");
     Serial.println("Desconectando do servidor...");
-    mqttClient.disconnect(); //Desconecta a placa do servidor
+    mqttClient.disconnect();
     Serial.println("Desconectado.");
   }
 }
@@ -96,23 +96,46 @@ void mqtt_callback(char* topico, byte* payload, unsigned int comprimento) {
     float umidade = dht.readHumidity();
     float analog_soil_humid = analogRead(pinoFC_28);
 
-    // Converte o valor em uma string
     String umidade_string = String (umidade); 
     String temperatura_string = String(temperatura);
     Serial.print("Analogico: ");
     Serial.println(analog_soil_humid);
-    float percent_soil = ((4095 - analog_soil_humid) / (4095-2600)) * 100;
-    if (percent_soil > 100){
-      percent_soil = 100;
-    }
+    float percent_soil = ((4095 - analog_soil_humid) / (4095-1514)) * 100; // Na agua ele foi até 2006
+    // if (percent_soil > 100){
+    //   percent_soil = 100;
+    // }
     Serial.println(percent_soil);
-    // Publica o valor do sensor no tópico MQTT
-    Serial.println( "Valor publicados: " );
-    mqttClient.publish (topic_publish_ir, String(umidade).c_str());
+    Serial.println("Valor publicados: ");
+    mqttClient.publish("esp32/umidade", String(umidade).c_str());
     mqttClient.publish("esp32/temperatura", String(temperatura).c_str());
     mqttClient.publish("esp32/umidade-solo", String(percent_soil).c_str());
+  } else {
+    // Separar a mensagem usando ":" como delimitador
+    int separatorIndex = mensagem_recebida.indexOf(':');
+    
+    if (separatorIndex != -1) {
+      String comando = mensagem_recebida.substring(0, separatorIndex);
+      String quantidade_str = mensagem_recebida.substring(separatorIndex + 1);
+      
+      // Converter quantidade para inteiro
+      int quantidade = quantidade_str.toInt();
+      
+      Serial.print("Comando: ");
+      Serial.println(comando);
+      Serial.print("Quantidade: ");
+      Serial.println(quantidade);
+      
+      // Verificar se é comando de irrigação
+      if (comando == "Irrigar") {
+        Serial.println("Iniciando irrigação...");
+        Serial.println(quantidade);
+        digitalWrite(pin_rele, HIGH);
+        sleep(quantidade * 1); // quantidade em segundos
+        digitalWrite(pin_rele, LOW);
+        Serial.println("Irrigação finalizada.");
+      }
+    } else {
+      Serial.println("Formato de mensagem inválido. Use: comando:quantidade");
+    }
   }
-  Serial.println("");
-  Serial.print("Mensagem recebida: ");
-  Serial.println(mensagem_recebida);
 }
