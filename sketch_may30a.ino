@@ -5,60 +5,58 @@
 #include "DHT.h"
 
  // Credenciais de Wi-Fi 
-const  char * ssid = "UFN" ; // Adicionar o nome da rede Wi-Fi
-const  char * password = "" ; // Adicionar a senha da rede Wi-Fi
+const char* ssid = "" ; // Adicionar o nome da rede Wi-Fi
+const char* password = "" ; // Adicionar a senha da rede Wi-Fi
 
 // Detalhes do broker MQTT private 
-const  char * mqtt_broker = ""; // Adicionar o endereço do broker MQTT
-const  int mqtt_port = 8883 ; 
-const  char * mqtt_username = "" ; // Nome de usuário do broker MQTT
-const  char * mqtt_password = "" ; // Senha do broker MQTT
-
-// Tópico MQTT para sensor de infravermelho 
-const  char * topic_publish_ir = "esp32/umidade" ; 
+const char* mqtt_broker = ""; // Adicionar o endereço do broker MQTT
+const int mqtt_port = 8883 ; 
+const char* mqtt_username = "" ; // Nome de usuário do broker MQTT
+const char* mqtt_password = "" ; // Senha do broker MQTT
 
 // Detalhes do sensor de infravermelho 
 const int pinoDHT = 12;
 const int pinoFC_28 = 32;
+const int pin_rele = 25;
 
 // Criar instâncias
 WiFiClientSecure wifiClient; 
 PubSubClient mqttClient (wifiClient) ; 
 DHT dht(pinoDHT, DHT11);
 
-void setupMQTT()  { 
+void setupMQTT() {
   mqttClient.setServer(mqtt_broker, mqtt_port); 
   mqttClient.setCallback(mqtt_callback);
 } 
 
-void reconnect ()  { 
-  Serial. println ( "Conectando ao MQTT Broker..." ); 
-  while (!mqttClient.connected ()) { 
-    Serial.println ( "Reconectando ao MQTT Broker..." ); 
-    String clientId = "ESP32Client-" ; 
-    clientId += String ( random ( 0xffff ), HEX); 
-    
-    if (mqttClient. connect (clientId. c_str (), mqtt_username, mqtt_password)) { 
-      Serial.println( "Conectado ao MQTT Broker." ); 
-    } else { 
-      Serial.print("Falha, rc="); 
-      Serial.print(mqttClient.state ()); 
-      Serial.println("tente novamente em 5 segundos"); 
-      delay ( 5000 ); 
-    } 
+void reconnect() {
+  Serial.println("Conectando ao MQTT Broker...");
+  while (!mqttClient.connected()) {
+    Serial.println("Reconectando ao MQTT Broker...");
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);
+
+    if (mqttClient.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
+      Serial.println("Conectado ao MQTT Broker.");
+    } else {
+      Serial.print("Falha, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" tente novamente em 5 segundos");
+      delay(5000);
+    }
   }
 } 
 
 void setup() { 
   Serial.begin(9600); 
-  
-  WiFi.begin(ssid, password); 
-  while (WiFi. status () != WL_CONNECTED) { 
-    delay(500); 
-    Serial.print("."); 
-  } 
-  Serial.println(""); 
-  Serial.println("Conectado ao Wi-Fi"); 
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("Conectado ao Wi-Fi");
 
   wifiClient.setInsecure();
   
@@ -70,11 +68,11 @@ void setup() {
   pinMode(pin_rele, OUTPUT);
 } 
 
-void loop ()  { 
-  if (!mqttClient.connected ()) { 
-    reconnect(); 
-  } 
-  mqttClient.loop (); 
+void loop() {
+  if (!mqttClient.connected()) {
+    reconnect();
+  }
+  mqttClient.loop();
   if (!mqttClient.subscribe("esp32/")) {
     Serial.println("Erro ao se inscrever no topico");
     Serial.println("Desconectando do servidor...");
@@ -100,10 +98,10 @@ void mqtt_callback(char* topico, byte* payload, unsigned int comprimento) {
     String temperatura_string = String(temperatura);
     Serial.print("Analogico: ");
     Serial.println(analog_soil_humid);
-    float percent_soil = ((4095 - analog_soil_humid) / (4095-1514)) * 100; // Na agua ele foi até 2006
-    // if (percent_soil > 100){
-    //   percent_soil = 100;
-    // }
+    float percent_soil = ((4095 - analog_soil_humid) / (4095-2300)) * 100; // Na agua ele foi até 2006
+    if (percent_soil > 100){
+      percent_soil = 100;
+    }
     Serial.println(percent_soil);
     Serial.println("Valor publicados: ");
     mqttClient.publish("esp32/umidade", String(umidade).c_str());
@@ -130,7 +128,7 @@ void mqtt_callback(char* topico, byte* payload, unsigned int comprimento) {
         Serial.println("Iniciando irrigação...");
         Serial.println(quantidade);
         digitalWrite(pin_rele, HIGH);
-        sleep(quantidade * 1); // quantidade em segundos
+        delay((quantidade/22)*1000); // 22 é a vazão em mls por segundo
         digitalWrite(pin_rele, LOW);
         Serial.println("Irrigação finalizada.");
       }
